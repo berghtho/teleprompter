@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Teleprompter</title>
+<style>
+:root{
+  --bg:#071a3a; --bg2:#0b2352; --ink:#f4efe4; --dim:#9fb0d2; --band:#f2e94e; --edge:#1c3a76;
+  --font: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --size: 38px; --lh: 1.45; --width: 46ch; --gap: 60px; --bt: 30vh;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:var(--font)}
+body{overflow:hidden}
+#top{position:fixed;top:0;left:0;right:0;height:52px;display:flex;align-items:center;gap:18px;padding:0 18px;
+  background:linear-gradient(var(--bg) 70%, rgba(7,26,58,0));z-index:5;font-size:15px;color:var(--dim)}
+#top b{color:var(--ink);font-weight:600}
+#clock{font-variant-numeric:tabular-nums;font-size:22px;color:var(--band);min-width:80px}
+#where{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#speed{min-width:150px}#zoom{min-width:70px}
+#hint{color:var(--dim);opacity:.8}
+#stage{position:absolute;inset:0;overflow-y:scroll;scroll-behavior:auto;padding:var(--bt) 0 90vh}
+#stage::-webkit-scrollbar{width:0}
+#script,#script2{margin:0 auto;max-width:var(--width);font-size:var(--size);line-height:var(--lh);padding:0 24px}
+#script{color:rgba(244,239,228,.36)}
+#script h2{opacity:.6}
+#bright{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:3;clip-path:inset(calc(var(--bt) - .2em) 0 calc(100vh - var(--bt) + .2em - var(--size) * var(--lh) * 3) 0)}
+#wrap2{padding:var(--bt) 0 90vh;will-change:transform}
+#script2{color:var(--ink)}
+em.hi{font-style:normal;font-weight:700}
+#script2 em.hi{color:var(--band)}
+#script em.hi{color:rgba(242,233,78,.45)}
+#script h2,#script2 h2{font-size:.5em;font-weight:600;color:var(--band);margin:0 0 .6em;letter-spacing:.01em;
+  border-top:1px solid var(--edge);padding-top:var(--gap)}
+#script h2 span,#script2 h2 span{color:var(--dim);font-weight:400;margin-right:.6em}
+#script p,#script2 p{margin:0 0 .9em}
+#band{position:fixed;left:0;right:0;top:calc(var(--bt) - .2em);height:calc(var(--size) * var(--lh) * 3);pointer-events:none;
+  border-top:2px solid var(--band);border-bottom:2px solid var(--band);opacity:.35;z-index:2}
+#band:before{content:"";position:absolute;left:8px;top:50%;width:0;height:0;border:9px solid transparent;border-left:14px solid var(--band);transform:translateY(-50%)}
+.mirror #stage,.mirror #bright{transform:scaleX(-1)}
+#side{position:fixed;top:52px;bottom:0;left:0;width:300px;background:var(--bg2);border-right:1px solid var(--edge);
+  overflow:auto;transform:translateX(-100%);transition:transform .15s;z-index:6;padding:12px 0}
+body.side #side{transform:none}
+#side button{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);font:15px/1.3 var(--font);
+  padding:8px 16px;cursor:pointer}
+#side button:hover,#side button.cur{background:var(--edge)}
+#side button i{color:var(--dim);font-style:normal;display:inline-block;width:2.2em}
+#edit{position:fixed;inset:0;background:var(--bg);z-index:9;display:none;flex-direction:column;padding:16px}
+body.edit #edit{display:flex}
+#edit textarea{flex:1;width:100%;background:#03102a;color:var(--ink);border:1px solid var(--edge);border-radius:4px;
+  font:16px/1.5 Consolas,Menlo,monospace;padding:16px;resize:none}
+#edit .row{display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:14px;color:var(--dim);flex-wrap:wrap}
+button.b{background:var(--edge);color:var(--ink);border:0;border-radius:4px;padding:8px 14px;font:14px var(--font);cursor:pointer}
+button.b.primary{background:var(--band);color:#1b1d08;font-weight:600}
+button.b:focus-visible,#side button:focus-visible{outline:2px solid var(--band);outline-offset:2px}
+#help{position:fixed;right:18px;bottom:80px;font-size:13px;color:var(--dim);z-index:5;line-height:1.7;text-align:right}
+#help kbd{display:inline-block;border:1px solid var(--edge);border-radius:3px;padding:0 5px;color:var(--ink);font:12px var(--font)}
+#ctl{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:10px;z-index:7}
+#ctl button{width:64px;height:52px;border:1px solid var(--edge);border-radius:8px;background:var(--bg2);color:var(--ink);font:24px var(--font);cursor:pointer}
+#ctl button.big{width:120px;background:var(--band);color:#1b1d08;font-weight:700}
+#ctl button:hover{filter:brightness(1.15)}
+#ctl button:focus-visible{outline:2px solid var(--band);outline-offset:2px}
+#ctl small{display:block;font-size:11px;color:inherit;opacity:.8;font-weight:400}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--band);color:#1b1d08;padding:8px 16px;border-radius:4px;font-size:14px;opacity:0;transition:opacity .2s;z-index:10}
+#toast.on{opacity:1}
+@media (prefers-reduced-motion: reduce){#side{transition:none}}
+</style>
+</head>
+<body>
+<div id="top">
+  <span id="clock">00:00</span>
+  <span id="where"></span>
+  <span id="speed"><b>100</b> wpm · ~40 min</span>
+  <span id="zoom">size <b>50</b></span>
+  <span id="bandpos" title="Reading band position: [ and ] move it">band 10%</span>
+  <span id="hint">paused</span>
+  <span id="mk" title="Click to enable: hardware media keys (play/pause, next, previous) then control the prompter even while PowerPoint has the focus. Leave off if Teams or a YouTube tab keeps grabbing them." style="cursor: pointer;">media keys: off</span>
+</div>
+<div id="band"></div>
+<div id="stage"><div id="script"></div></div>
+<div id="bright"><div id="wrap2" style="transform: translateY(0px);"><div id="script2"></div></div></div>
+<nav id="side" aria-label="Slides"></nav>
+<div id="ctl">
+  <button id="bPrev" title="Previous slide">⏮</button>
+  <button id="bSlow" title="Slower">−<small>slower</small></button>
+  <button id="bPlay" class="big" title="Play / pause">▶ Play</button>
+  <button id="bFast" title="Faster">+<small>faster</small></button>
+  <button id="bNext" title="Next slide">⏭</button>
+</div>
+<div id="help">
+  <kbd>space</kbd> play / pause &nbsp; <kbd>↑</kbd><kbd>↓</kbd> speed &nbsp; <kbd>←</kbd><kbd>→</kbd> slide<br>
+  <kbd>+</kbd><kbd>−</kbd> text size &nbsp; <kbd>[</kbd><kbd>]</kbd> band up / down &nbsp; <kbd>S</kbd> slide list &nbsp; <kbd>E</kbd> edit &nbsp; <kbd>M</kbd> mirror &nbsp; <kbd>T</kbd> reset clock &nbsp; <kbd>H</kbd> hide this
+</div>
+<div id="edit">
+  <div class="row">
+    <button class="b primary" id="save">Save and close</button>
+    <button class="b" id="cancel">Cancel</button>
+    <button class="b" id="export">Download as .txt</button>
+    <button class="b" id="exportHtml">Save as .html (text embedded)</button>
+    <label class="b" for="import" style="cursor:pointer">Load .txt…</label><input id="import" type="file" accept=".txt,text/plain" style="display:none">
+    <button class="b" id="reset">Restore built-in script</button>
+    <span>One slide per block: a line with the slide number and title, a blank line, then the text. A single line break inside the text = a pause (new line on screen); a blank line = new paragraph; *word* = emphasis (shown bold and yellow). Edits are kept in this browser.</span>
+  </div>
+  <textarea id="ta" spellcheck="false"></textarea>
+</div>
+<audio id="silence" loop="" preload="auto" src="data:audio/wav;base64,UklGRmQfAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUAfAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA=="></audio>
+<div id="toast"></div>
+<script>
+const BUILTIN = "";
+const KEY='teleprompter-script';
+const stage=document.getElementById('stage'), box=document.getElementById('script'), side=document.getElementById('side'), box2=document.getElementById('script2'), wrap2=document.getElementById('wrap2');
+const clockEl=document.getElementById('clock'), whereEl=document.getElementById('where'), hintEl=document.getElementById('hint');
+const bandEl=document.getElementById('bandpos'), speedEl=document.getElementById('speed'), zoomEl=document.querySelector('#zoom b');
+let bandFrac=0.30; let text=BUILTIN, speed=4, size=38, playing=false, t0=null, elapsed=0, raf=null, last=null, sections=[];
+try{ const s=localStorage.getItem(KEY); if(s) text=s; }catch(e){}
+try{ const v=localStorage.getItem(KEY+':size'); if(v) size=+v; const sp=localStorage.getItem(KEY+':speed'); if(sp) speed=+sp; const bt=localStorage.getItem(KEY+':band'); if(bt) bandFrac=+bt; }catch(e){}
+function applyBand(){ document.documentElement.style.setProperty('--bt',Math.round(bandFrac*100)+'vh'); bandEl.textContent='band '+Math.round(bandFrac*100)+'%'; try{localStorage.setItem(KEY+':band',bandFrac)}catch(e){} }
+
+function parse(t){
+  const blocks=t.replace(/\r/g,'').split(/\n\s*\n/); const out=[]; let cur=null;
+  for(const raw of blocks){
+    const b=raw.trim(); if(!b) continue;
+    const m=b.match(/^(\d+)\s+(.+)$/s);
+    if(m && !b.includes('\n') && b.length<120){ cur={num:m[1],title:m[2].trim(),paras:[]}; out.push(cur); }
+    else { if(!cur){cur={num:'',title:'',paras:[]}; out.push(cur);} cur.paras.push(b); }
+  }
+  return out;
+}
+function render(){
+  sections=parse(text); box.innerHTML=''; side.innerHTML='';
+  sections.forEach((s,i)=>{
+    const h=document.createElement('h2'); h.id='s'+i;
+    h.innerHTML=(s.num?'<span>'+s.num+'</span>':'')+esc(s.title); box.appendChild(h);
+    s.paras.forEach(p=>{const el=document.createElement('p'); el.innerHTML=p.split('\n').map(l=>emph(esc(l.trim()))).join('<br>'); box.appendChild(el);});
+    const b=document.createElement('button'); b.innerHTML='<i>'+esc(s.num)+'</i>'+esc(s.title);
+    b.onclick=()=>{jump(i); document.body.classList.remove('side');}; side.appendChild(b);
+  });
+  box2.innerHTML=box.innerHTML; sync();
+  applySize();
+}
+function sync(){ wrap2.style.transform='translateY('+(-stage.scrollTop)+'px)'; }
+function emph(h){ return h.replace(/\*([^*\n]{1,80}?)\*/g,'<em class="hi">$1</em>'); }
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function applySize(){ document.documentElement.style.setProperty('--size',size+'px'); zoomEl.textContent=size; try{localStorage.setItem(KEY+':size',size)}catch(e){} setSpeed(speed); }
+function setSpeed(v){ speed=Math.max(1,Math.min(12,v)); applyGap(); const mins=totalWords()/wpm() + sections.length*GAP_SEC/60; speedEl.innerHTML='<b>'+wpm()+'</b> wpm · ~'+Math.round(mins)+' min'; try{localStorage.setItem(KEY+':speed',speed)}catch(e){} }
+function wpm(){ return 80+speed*10; }   // speed 1 = 90 wpm … speed 12 = 200 wpm
+function totalWords(){ return sections.reduce((n,s)=>n+s.paras.join(' ').split(/\s+/).filter(Boolean).length,0)||1; }
+const GAP_SEC=3;
+function textPx(){ let h=0; box.querySelectorAll('p').forEach(p=>h+=p.offsetHeight+parseFloat(getComputedStyle(p).marginBottom)); return h||1; }
+function pxPerSec(){ return (wpm()/60) * textPx() / totalWords(); }   // px per word × words per second, paragraphs only
+function applyGap(){ document.documentElement.style.setProperty('--gap', Math.round(pxPerSec()*GAP_SEC)+'px'); }
+let carry=0;
+function tick(now){
+  if(!playing){raf=null;return;}
+  if(last!=null){ carry += pxPerSec()*(now-last)/1000; const step=Math.trunc(carry); if(step){ stage.scrollTop += step; carry -= step; sync(); } }
+  last=now; updateClock(); updateWhere(); raf=requestAnimationFrame(tick);
+}
+let play=function(){ if(playing) return; playing=true; last=null; carry=0; if(t0==null) t0=performance.now()-elapsed; hintEl.textContent='playing'; raf=requestAnimationFrame(tick); }
+let pause=function(){ if(!playing) return; playing=false; elapsed=performance.now()-t0; hintEl.textContent='paused'; };
+function updateClock(){ const e=playing?performance.now()-t0:elapsed; const s=Math.floor(e/1000); clockEl.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+function curIndex(){
+  const y=stage.scrollTop+window.innerHeight*bandFrac; let idx=0;
+  for(let i=0;i<sections.length;i++){ const h=document.getElementById('s'+i); if(h && h.offsetTop<=y) idx=i; }
+  return idx;
+}
+function plannedSec(i){ let w=0; for(let k=0;k<i;k++) w+=sections[k].paras.join(' ').split(/\s+/).filter(Boolean).length; return w/wpm()*60 + i*GAP_SEC; }
+function fmt(sec){ sec=Math.max(0,Math.floor(sec)); return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'); }
+function updateWhere(){
+  const i=curIndex(); const s=sections[i]; if(!s) return;
+  const plan=plannedSec(i); const now=(playing?performance.now()-t0:elapsed)/1000; const diff=now-plan;
+  const col=Math.abs(diff)<45?'var(--dim)':(diff>0?'#ff8a80':'#8ce99a');
+  whereEl.innerHTML=(s.num?'<b>'+esc(s.num)+'</b> ':'')+esc(s.title)+'<span style="opacity:.6"> · '+(i+1)+'/'+sections.length+'</span>'
+    +' <span style="margin-left:14px">planned <b>'+fmt(plan)+'</b></span>'+(t0!=null?' <span style="color:'+col+'">('+(diff>=0?'+':'−')+fmt(Math.abs(diff))+')</span>':'');
+  [...side.children].forEach((b,k)=>b.classList.toggle('cur',k===i));
+}
+function jump(i){ const h=document.getElementById('s'+i); if(!h) return; stage.scrollTop=h.offsetTop-window.innerHeight*bandFrac+8; sync(); updateWhere(); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),1600); }
+
+document.addEventListener('keydown',e=>{
+  if(document.body.classList.contains('edit')){ if(e.key==='Escape') closeEdit(); return; }
+  const k=e.key;
+  if(k===' '){ e.preventDefault(); playing?pause():play(); }
+  else if(k==='ArrowUp'){ e.preventDefault(); setSpeed(speed+1); }
+  else if(k==='ArrowDown'){ e.preventDefault(); setSpeed(speed-1); }
+  else if(k==='ArrowRight'){ e.preventDefault(); jump(Math.min(sections.length-1,curIndex()+1)); }
+  else if(k==='ArrowLeft'){ e.preventDefault(); const i=curIndex(); const h=document.getElementById('s'+i); const atTop=h && Math.abs(stage.scrollTop-(h.offsetTop-window.innerHeight*bandFrac+8))<40; jump(atTop?Math.max(0,i-1):i); }
+  else if(k==='+'||k==='='){ size=Math.min(80,size+2); applySize(); }
+  else if(k==='-'||k==='_'){ size=Math.max(18,size-2); applySize(); }
+  else if(k.toLowerCase()==='s'){ document.body.classList.toggle('side'); }
+  else if(k.toLowerCase()==='e'){ e.preventDefault(); openEdit(); }
+  else if(k.toLowerCase()==='m'){ document.body.classList.toggle('mirror'); }
+  else if(k.toLowerCase()==='t'){ t0=playing?performance.now():null; elapsed=0; updateClock(); toast('Clock reset'); }
+  else if(k.toLowerCase()==='h'){ const h=document.getElementById('help'); h.style.display=h.style.display==='none'?'':'none'; }
+  else if(k==='['){ bandFrac=Math.max(0.10,bandFrac-0.05); applyBand(); sync(); }
+  else if(k===']'){ bandFrac=Math.min(0.70,bandFrac+0.05); applyBand(); sync(); }
+  else if(k==='Home'){ stage.scrollTop=0; updateWhere(); }
+});
+stage.addEventListener('scroll',()=>{ sync(); if(!playing) updateWhere(); });
+window.addEventListener('resize',()=>{sync(); setSpeed(speed);});
+
+const ta=document.getElementById('ta');
+function openEdit(){ pause(); ta.value=text; document.body.classList.add('edit'); ta.focus(); }
+function closeEdit(){ document.body.classList.remove('edit'); }
+document.getElementById('save').onclick=()=>{ text=ta.value; try{localStorage.setItem(KEY,text)}catch(e){} const i=curIndex(); render(); jump(Math.min(i,sections.length-1)); closeEdit(); toast('Saved'); };
+document.getElementById('cancel').onclick=closeEdit;
+document.getElementById('export').onclick=()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([ta.value],{type:'text/plain'})); a.download='teleprompter-script.txt'; a.click(); };
+document.getElementById('exportHtml').onclick=()=>{
+  const root=document.documentElement.cloneNode(true);
+  root.removeAttribute('style'); root.querySelector('body').removeAttribute('class');
+  ['script','script2','side','where'].forEach(id=>{const el=root.querySelector('#'+id); if(el) el.innerHTML='';});
+  const t=root.querySelector('#ta'); if(t) t.textContent='';
+  const m=root.querySelector('#mk'); if(m) m.textContent='media keys: off';
+  const c=root.querySelector('#clock'); if(c) c.textContent='00:00';
+  const src=root.outerHTML;
+  const marker='const BUILTIN = ';
+  const i=src.indexOf(marker); const j=src.indexOf(';\n', i);
+  if(i<0||j<0){ toast('Could not embed'); return; }
+  const out='<!DOCTYPE html>\n'+src.slice(0,i)+marker+JSON.stringify(ta.value)+src.slice(j);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/html'})); a.download='teleprompter.html'; a.click();
+  toast('Saved a new .html with your text built in');
+};
+document.getElementById('import').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ ta.value=r.result; toast('Loaded '+f.name+' — press Save to keep it'); }; r.readAsText(f); };
+document.getElementById('reset').onclick=()=>{ if(confirm('Replace your edited text with the built-in script?')){ ta.value=BUILTIN; } };
+
+// --- hardware media keys via Media Session (works while another app has focus) ---
+const silence=document.getElementById('silence'), mk=document.getElementById('mk');
+let mediaOn=false;
+function enableMediaKeys(){
+  if(mediaOn) return;
+  silence.volume=0.02;
+  silence.play().then(()=>{
+    mediaOn=true; mk.textContent='media keys: on';
+    if('mediaSession' in navigator){
+      navigator.mediaSession.metadata=new MediaMetadata({title:'Teleprompter',artist:'play/pause · next · previous'});
+      const set=(a,f)=>{try{navigator.mediaSession.setActionHandler(a,f)}catch(e){}};
+      set('play',()=>{play(); navigator.mediaSession.playbackState='playing';});
+      set('pause',()=>{pause(); navigator.mediaSession.playbackState='paused';});
+      set('nexttrack',()=>jump(Math.min(sections.length-1,curIndex()+1)));
+      set('previoustrack',()=>{const i=curIndex(); const h=document.getElementById('s'+i); const atTop=h && Math.abs(stage.scrollTop-(h.offsetTop-window.innerHeight*bandFrac+8))<40; jump(atTop?Math.max(0,i-1):i);});
+      set('seekforward',()=>setSpeed(speed+1));
+      set('seekbackward',()=>setSpeed(speed-1));
+      navigator.mediaSession.playbackState='paused';
+    }
+  }).catch(()=>{ mk.textContent='media keys: click page to enable'; });
+}
+function disableMediaKeys(){ if(!mediaOn) return; silence.pause(); mediaOn=false; mk.textContent='media keys: off'; if('mediaSession' in navigator){ ['play','pause','nexttrack','previoustrack','seekforward','seekbackward'].forEach(a=>{try{navigator.mediaSession.setActionHandler(a,null)}catch(e){}}); } }
+mk.style.cursor='pointer'; mk.onclick=()=>{ mediaOn?disableMediaKeys():enableMediaKeys(); };
+const bPlay=document.getElementById('bPlay');
+function syncPlayBtn(){ bPlay.textContent=playing?'❚❚ Pause':'▶ Play'; }
+document.getElementById('bPrev').onclick=()=>{const i=curIndex(); const h=document.getElementById('s'+i); const atTop=h && Math.abs(stage.scrollTop-(h.offsetTop-window.innerHeight*bandFrac+8))<40; jump(atTop?Math.max(0,i-1):i);};
+document.getElementById('bNext').onclick=()=>jump(Math.min(sections.length-1,curIndex()+1));
+document.getElementById('bSlow').onclick=()=>setSpeed(speed-1);
+document.getElementById('bFast').onclick=()=>setSpeed(speed+1);
+bPlay.onclick=(e)=>{ e.stopPropagation(); playing?pause():play(); };
+[...document.querySelectorAll('#ctl button')].forEach(b=>b.addEventListener('pointerdown',e=>e.stopPropagation()));
+const _play=play, _pause=pause;
+play=function(){ _play(); syncPlayBtn(); if(mediaOn&&'mediaSession' in navigator) navigator.mediaSession.playbackState='playing'; };
+pause=function(){ _pause(); syncPlayBtn(); if(mediaOn&&'mediaSession' in navigator) navigator.mediaSession.playbackState='paused'; };
+
+applyBand(); render(); setSpeed(speed); updateWhere(); updateClock();
+</script>
+
+</body></html>
