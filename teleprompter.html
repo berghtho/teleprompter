@@ -61,7 +61,7 @@ button.b:focus-visible,#side button:focus-visible{outline:2px solid var(--band);
 #ctl button:hover{filter:brightness(1.15)}
 #ctl button:focus-visible{outline:2px solid var(--band);outline-offset:2px}
 #ctl small{display:block;font-size:11px;color:inherit;opacity:.8;font-weight:400}
-#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--band);color:#1b1d08;padding:8px 16px;border-radius:4px;font-size:14px;opacity:0;transition:opacity .2s;z-index:10}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--band);color:#1b1d08;padding:8px 16px;border-radius:4px;font-size:14px;opacity:0;transition:opacity .2s;z-index:10;pointer-events:none}
 #toast.on{opacity:1}
 @media (prefers-reduced-motion: reduce){#side{transition:none}}
 </style>
@@ -233,8 +233,9 @@ function enableMediaKeys(){
     if('mediaSession' in navigator){
       navigator.mediaSession.metadata=new MediaMetadata({title:'Teleprompter',artist:'play/pause · next · previous'});
       const set=(a,f)=>{try{navigator.mediaSession.setActionHandler(a,f)}catch(e){}};
-      set('play',()=>{play(); navigator.mediaSession.playbackState='playing';});
-      set('pause',()=>{pause(); navigator.mediaSession.playbackState='paused';});
+      // the silent loop makes the browser treat the page as playing, so the play/pause key always sends 'pause': toggle on both
+      const toggle=()=>{ playing?pause():play(); };
+      set('play',toggle); set('pause',toggle);
       set('nexttrack',()=>jump(Math.min(sections.length-1,curIndex()+1)));
       set('previoustrack',()=>{const i=curIndex(); const h=document.getElementById('s'+i); const atTop=h && Math.abs(stage.scrollTop-(h.offsetTop-window.innerHeight*bandFrac+8))<40; jump(atTop?Math.max(0,i-1):i);});
       set('seekforward',()=>setSpeed(speed+1));
